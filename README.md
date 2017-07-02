@@ -97,7 +97,7 @@ step4. train the network
        Run "training_depth_full.py"(about 60000 iterations)
        Run "training_depth_fullbody.py"(about 60000 iterations)
        Run "training_rgb_full.py" (about 60000 iterations)
-       Run "training_rgb_full.py"(about 60000 iterations)
+       Run "training_rgb_fullbody.py"(about 60000 iterations)
 step5. Fine-tuning the RGB neural network using the Rgb models as the pre-trained model, and  fine-tuning the depth neural network using the Rgb models as the pre-trained model.
 
 #6.Generate the test_prediction.txt
