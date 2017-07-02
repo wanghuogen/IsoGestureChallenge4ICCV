@@ -1,0 +1,139 @@
+# encoding = utf8
+import os
+
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+import io
+import sys
+
+reload(sys)
+import numpy as np
+import tensorflow as tf
+
+slim = tf.contrib.slim
+import tensorlayer as tl
+import inputs as data
+import c3d_clstm as net
+import time
+from datetime import datetime
+import threading
+import cStringIO
+import numpy as np
+import sys
+import os
+from skimage import io;
+io.use_plugin('matplotlib')
+from sklearn.preprocessing import normalize
+
+
+seq_len = 32
+batch_size = 1
+n_epoch = 1  # 1000
+learning_rate = 0.1
+decay_steps = 15000
+decay_rate = 0.1
+weight_decay = 0.004
+print_freq = 1
+queue_num = 5
+start_step = 60698
+
+num_classes = 249
+dataset_name = 'depth_fullbody'
+training_datalist = 'image4tensorflow/train/train_depth_fullbody.txt'
+testing_datalist = 'image4tensorflow/test/test_depth_fullbody.txt'
+
+
+sess = tf.InteractiveSession()
+x = tf.placeholder(tf.float32, [batch_size, seq_len, 112, 112, 3], name='x')
+y = tf.placeholder(tf.int32, shape=[batch_size, ], name='y')
+
+networks = net.c3d_clstm(x, num_classes, False, True)
+networks_y = networks.outputs
+networks_y_op = tf.argmax(tf.nn.softmax(networks_y), 1)
+networks_cost = tl.cost.cross_entropy(networks_y, y, 'loss')
+correct_pred = tf.equal(tf.cast(networks_y_op, tf.int32), y)
+networks_accu = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
+
+predictons = net.c3d_clstm(x, num_classes, True, False)
+predicton_y_op = tf.argmax(tf.nn.softmax(predictons.outputs), 1)
+predicton_accu = tf.reduce_mean(tf.cast(tf.equal(tf.cast(predicton_y_op, tf.int32), y), tf.float32))
+
+l2_cost = tf.contrib.layers.l2_regularizer(weight_decay)(networks.all_params[0]) + \
+          tf.contrib.layers.l2_regularizer(weight_decay)(networks.all_params[6]) + \
+          tf.contrib.layers.l2_regularizer(weight_decay)(networks.all_params[12]) + \
+          tf.contrib.layers.l2_regularizer(weight_decay)(networks.all_params[14]) + \
+          tf.contrib.layers.l2_regularizer(weight_decay)(networks.all_params[20]) + \
+          tf.contrib.layers.l2_regularizer(weight_decay)(networks.all_params[22]) + \
+          tf.contrib.layers.l2_regularizer(weight_decay)(networks.all_params[24])
+cost = networks_cost + l2_cost
+
+global_step = tf.Variable(start_step, trainable=False)
+lr = tf.train.exponential_decay(learning_rate,
+                                global_step,
+                                decay_steps,
+                                decay_rate,
+                                staircase=True)
+train_params = networks.all_params
+train_op = tf.train.GradientDescentOptimizer(lr).minimize(cost,
+                                                          var_list=train_params,
+                                                          global_step=global_step)
+
+sess.run(tf.initialize_all_variables())
+if start_step > 0:
+    load_params = tl.files.load_npz('depth_fullbody_')  #You can change your model name as:depth_fullbody_model.npz
+    tl.files.assign_params(sess, load_params, networks)
+networks.print_params(True)
+
+# Data Reading
+#X_train, y_train = data.load_video_list(training_datalist)
+#X_tridx = np.asarray(np.arange(0, len(y_train)), dtype=np.int32)
+#y_train = np.asarray(y_train, dtype=np.int32)
+X_test, y_test = data.load_video_list(testing_datalist)
+X_teidx = np.asarray(np.arange(0, len(y_test)), dtype=np.int32)
+y_test = np.asarray(y_test, dtype=np.int32)
+
+X_data_a = np.empty((batch_size * queue_num, seq_len, 112, 112, 3), float)
+y_label_a = np.empty((batch_size * queue_num,), int)
+
+full_flg = np.zeros((queue_num, 1))
+rdwr_lock = threading.Lock()
+
+
+step = start_step
+rd_pos = 0
+for epoch in range(n_epoch):
+    # Test Stage
+    average_accuracy = 0.0
+    test_iterations = 0;
+    for X_indices, y_label_t in tl.iterate.minibatches(X_teidx,
+                                                       y_test,
+                                                       batch_size,
+                                                       shuffle=False):
+        # Read data for each batch
+        image_path = []
+        image_fcnt = []
+        image_olen = []
+        is_training = []
+        for data_a in range(batch_size):
+            X_index_a = X_indices[data_a]
+            key_str = '%06d' % X_index_a
+            image_path.append(X_test[key_str]['videopath'])
+            image_fcnt.append(X_test[key_str]['framecnt'])
+            image_olen.append(seq_len)
+            is_training.append(False)  # Testing
+        image_info = zip(image_path, image_fcnt, image_olen, is_training)
+        X_data_t = tl.prepro.threading_data([_ for _ in image_info],
+                                            data.prepare_isogr_depth_data)
+        feed_dict = {x: X_data_t, y: y_label_t}
+        dp_dict = tl.utils.dict_to_one(predictons.all_drop)
+        feed_dict.update(dp_dict)
+        _, accu_value = sess.run([tf.nn.softmax(predictons.outputs), predicton_accu], feed_dict=feed_dict)
+
+
+        np.save('test_depth_fullbody_predict/'+image_path[0][-7:]+'.npy',_)
+
+        print _
+        average_accuracy = average_accuracy + accu_value
+        test_iterations = test_iterations + 1
+    average_accuracy = average_accuracy / test_iterations
+
+sess.close()
