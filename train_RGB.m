@@ -18,7 +18,7 @@ ff_val2 = fopen('image4tensorflow/train/val_rgb_full.txt','w');
 
 while feof(fpn) ~= 1                
       file = fgetl(fpn);             
-      obj_origin = VideoReader(['DATA/IsoGD_phase_1/IsoGD_phase_1/',file(1:21)]);
+1      obj_origin = VideoReader(['DATA/IsoGD_phase_1/IsoGD_phase_1/',file(1:21)]);
       detectionLabel = fopen(['DATA/DetectionLabel4Rgb4train/',file(7:9),'/Label_',file(11:17),'.txt']);
       disp(['Extract frame of ',file(11:17)]);
       numFrames_origin = obj_origin.NumberOfFrames;
@@ -77,6 +77,8 @@ while feof(fpn) ~= 1
         end
       
 end
-fclose(ff_train);
-fclose(ff_val);
+fclose(ff_train1);
+fclose(ff_val1);
+fclose(ff_train2);
+fclose(ff_val2);
 fclose(fpn);
