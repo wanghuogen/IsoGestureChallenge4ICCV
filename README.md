@@ -113,6 +113,7 @@ author = {Wang, Huogen and Wang, Pichao and Song, Zhanjie and Li, Wanqing},
 title = {Large-Scale Multimodal Gesture Recognition Using Heterogeneous Networks}, 
 booktitle = {The IEEE International Conference on Computer Vision (ICCV)}, 
 month = {Oct}, year = {2017} }
+
 @InProceedings{Wang_2017_ICCV_Workshops, 
 author = {Wang, Huogen and Wang, Pichao and Song, Zhanjie and Li, Wanqing}, 
 title = {Large-Scale Multimodal Gesture Segmentation and Recognition Based on Convolutional Neural Networks}, 
